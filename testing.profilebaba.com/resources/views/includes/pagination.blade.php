@@ -1,0 +1,1 @@
+{{ $pagination_data->appends(request()->all())->links() }}
