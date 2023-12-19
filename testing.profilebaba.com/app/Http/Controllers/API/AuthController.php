@@ -146,10 +146,8 @@ class AuthController extends BaseController
         $records['latitude'] = $request->latitude;
         $records['longitude'] = $request->longitude;
         
-        
-        //echo '<pre>'; print_r($records); echo '</pre>'; die;
         $user = User::create($records);
-        //echo '<pre>'; print_r($user); echo '</pre>'; die;
+        
 
         $success['token'] =  $user->token;
         $success['name'] =  $user->name;
@@ -482,13 +480,32 @@ class AuthController extends BaseController
 
     public function searchDataApi(Request $request) {
         $data = [];
-        $search = $request['search'];
-        $userlocation = $request['location'];
-        //DB::enableQueryLog();
+		
+		
+		$search = $request['search'];
+		$name = $request['name'];
+		$lat = $request['lat'];
+		$lng = $request['lng'];
+		
+		$userlocation = array('name'=>$name,'lat'=>$lat,'lng'=>$lng);
+		//echo '<pre>'; print_r($userlocation); echo '</pre>';
+		
+		//die;
+		
+		
+        
+		//echo '<pre>'; print_r($userlocation); echo '</pre>'; die;
+		
         $category = Category::where('title','like','%'.$search.'%')->get();
         $svendor = Vendor::where('business_name','like','%'.$search.'%')->get();
         $location = VendorContactInformation::where('address','like','%'.$search.'%')->orWhere('area','like','%'.$search.'%')->get();
         // dd(DB::getQueryLog());
+		
+		
+		/*$client = new Client(); //GuzzleHttp\Client
+        echo $result =(string) $client->post("https://maps.googleapis.com/maps/api/geocode/json?address=".$userlocation."&key=AIzaSyBG7U89RzBTCmuQTrNvrUlgaMT7phsiCQw")->getBody();
+        $json =json_decode($result);
+		echo '<pre>'; print_r($json); echo '</pre>'; die;*/
         
         if($category){
             foreach($category as $cat){
@@ -502,6 +519,8 @@ class AuthController extends BaseController
                     }
                 }
             }
+			
+			//echo 'in cat';
         }
 
         if($svendor){
@@ -511,6 +530,9 @@ class AuthController extends BaseController
                     array_push($data,$vendor);
                 }
             }
+			
+			//echo 'in vend';
+			
         }
 
         if($location){
@@ -520,6 +542,9 @@ class AuthController extends BaseController
                     array_push($data,$vendor);
                 }
             }
+			
+			//echo 'in loc';
+			
         }
         //echo $userlocation; //die;
         $response = [];
@@ -547,7 +572,7 @@ class AuthController extends BaseController
 			//echo '<pre>'; print_r($response); die;
         }
         else{
-            //echo 'IN EMPTY';
+            //echo 'IN EMPTY'; die;
 			
 			$gresponse = $this->getGoogleVendorList($search,$userlocation);
 			$response = $this->saveVendor($gresponse);
@@ -565,13 +590,19 @@ class AuthController extends BaseController
     }
 
     public function getVendorDetail($vendor, $location){
-        DB::enableQueryLog();
+        //DB::enableQueryLog();
+		//echo '<pre>'; print_r($location); echo '</pre>'; die;
+		
+		
+		$lng = !empty($location['lng'])?$location['lng']:"";
+		$lat = !empty($location['lat'])?$location['lat']:""; //die;
+		
         $cond = "*,c.title as category";
         $where = "v.status='1' and u.status='1' and v.id=".$vendor;
         $join = "JOIN users as u ON u.id = v.user_id JOIN vendor_categories AS vc ON v.id = vc.vendor_id JOIN category as c ON c.id = vc.category_id";
         $having = "";
         if($location != ''){
-            $cond = $cond.", ST_Distance_Sphere(Point(".$location['lng'].",".$location['lat']."), vs.lat_lng) * 0.00099 AS 'distance'";
+            $cond = $cond.", ST_Distance_Sphere(Point(".$lng.",".$lat."), vs.lat_lng) * 0.00099 AS 'distance'";
             $having = $having."HAVING distance<50 ORDER BY distance ASC";
             $join = $join." JOIN vendor_service_location AS vs ON vs.vendor_id = v.id";
         }
@@ -594,7 +625,9 @@ class AuthController extends BaseController
 
     public function getGoogleVendorList($search, $location){
         
-            $area = "";
+            //echo '<pre>'; print_r($location); echo '<pre>'; die;
+			
+			$area = "";
             if($location != "" ){
                 $area = $location['name'] ?? "";
             }
@@ -620,8 +653,6 @@ class AuthController extends BaseController
                 //print($location); //die;
                 if($location != ""){
                     //$dist = CustomValue::getGoogleDistance($location,[$v['latitude'],$v['longitude']]);
-                    
-                    
                     //echo $v['latitude'].'--'.$v['longitude']; //die;
                     
                     $dist = CustomValue::getGoogleDistance($v['latitude'],$v['longitude']);
@@ -651,7 +682,9 @@ class AuthController extends BaseController
 	
 	public function saveVendor($request){
         $ids = [];
+		//echo '<pre>'; print_r($request); echo '<pre>'; die;
         foreach($request as $key => $vendor){
+				//echo $vendor['phone']; die;
 				
                 $vexist = VendorContactInformation::where('mobile_number',$vendor['phone'])->first();
                 $uexist = User::where('contact_number',$vendor['phone'])->first();
@@ -743,6 +776,109 @@ class AuthController extends BaseController
 		
 		//echo '<pre>'; print_r($ids); echo '</pre>'; die;
         return $ids;
+    }
+	
+	
+	/*public function checkDetail(){
+		echo '<pre>'; print_r($request); echo '</pre>'; die;
+	}*/
+	
+	public function checkSaveVendor($request){
+        $ids = [];
+		echo '<pre>'; print_r($request); echo '</pre>'; die;
+        /*foreach($request as $key => $vendor){
+				echo $vendor['phone']; die;
+				
+                $vexist = VendorContactInformation::where('mobile_number',$vendor['phone'])->first();
+                $uexist = User::where('contact_number',$vendor['phone'])->first();
+				
+				$new_vendor_id = !empty($uexist)?$uexist->id:"";
+				$new_vendor_id = !empty($new_vendor_id)?$new_vendor_id:"";
+				
+				if(!$vexist){
+                    
+					
+                    if(!$uexist){
+                        $checkCat = Category::where('title',$vendor['category'])->first();
+                        
+						$gcat = [];
+                        if(!$checkCat){
+                            $cat['title'] = $vendor['category'];
+                            $cat['parent_id'] = '-1';
+                            $gcat = Category::create($cat);
+                        }
+						
+						$lat =$vendor['lat_lng'][0];
+                        $lng =$vendor['lat_lng'][1];
+						
+						$hashed_password = Hash::make(Str::random(6));
+                        $records['password'] = $hashed_password;
+                        $records['token'] = Hash::make(Str::random(60));
+                        $records['name'] = $vendor['name'];
+                        $records['contact_number'] = $vendor['phone'];
+                        $records['status'] = '0';
+                        $records['is_vendor'] = '1';
+                        $records['register_by'] = 'google';
+						
+						$user = User::create($records);
+						
+						$ven['user_id'] = $user->id;
+						$ven['business_name'] = $vendor['name'];
+                        $ven['slug'] = str_replace(' ','-',strtolower($vendor['name']));
+                        $new_ven = Vendor::create($ven);
+                        
+                        $validate[] = ['category_id'=>($gcat) ? $gcat['id'] : $checkCat->id,'vendor_id'=>$new_ven->id];
+                        VendorCategory::insert($validate);
+                        
+                        $venContact['lat_lng'] = new Point($lat, $lng);
+                        $venContact['mobile_number'] = $vendor['phone'];
+                        $venContact['address'] = $vendor['address'];
+                        $venContact['vendor_id'] = $new_ven->id;
+                        VendorContactInformation::create($venContact);
+
+                        $venContact['lat_lng'] = new Point($lat, $lng);
+                        $venContact['service_location'] = $vendor['address'];
+                        $venContact['vendor_id'] = $new_ven->id;
+                        VendorServiceLocation::create($venContact);
+
+                        $vendor['result'] = 'OK';
+						
+						//$vendor['new_vendor_id'] = $user->id;
+						$ids['new_vendor_id'] = $user->id;
+						
+                        array_push($ids,$vendor);
+						
+						//echo 'INNER IF';
+						//echo '<pre>'; print_r($ids); echo '</pre>'; die;
+
+                    }
+                    else{
+						//echo 'IN FIRST ELSE';
+						
+						$vendor['new_vendor_id'] = !empty($new_vendor_id)?$new_vendor_id:"";
+                        $vendor['result'] = 'Exist';
+                        array_push($ids,$vendor);
+						
+						//echo 'IN FIRST ELSE';
+						//echo '<pre>'; print_r($ids); echo '</pre>'; die;
+						
+                    }
+                }
+                else{
+					//$ids['new_vendor_id'] = $user->id;
+                    //echo 'IN SECOND ELSE';
+					//echo $new_vendor_id; die;
+					$vendor['new_vendor_id'] = !empty($new_vendor_id)?$new_vendor_id:"";
+					$vendor['result'] = 'Exist';
+                    array_push($ids,$vendor);
+					
+					//echo '<pre>'; print_r($ids); echo '</pre>'; die; 
+					
+                }
+        }
+		
+		//echo '<pre>'; print_r($ids); echo '</pre>'; die;
+        return $ids;*/
     }
 	
     

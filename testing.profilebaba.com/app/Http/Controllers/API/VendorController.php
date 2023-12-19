@@ -101,7 +101,7 @@ class VendorController extends BaseController
         
         die;*/
         
-		//echo '<pre>'; print_r($response); echo '</pre>'; //die;
+		//echo '<pre>'; print_r($response); echo '</pre>'; die;
 		
         if(count($response) > 99){
             // $result = [
@@ -114,12 +114,13 @@ class VendorController extends BaseController
             $queryVendor['response_count'] = count($response);
             $queryVendor->save();
             $vendorlist['json_data'] = json_encode($response);
+			$data_from = 'google';
             // return response()->json($result, 200,[],JSON_INVALID_UTF8_IGNORE);
             
             //echo 'Not empty'; die;
         }
         else{
-            
+            //echo 'in empty'; die;
             
             //$google = $this->getGoogleVendor($request->category_id, $request->location ?? "", count($response));
             
@@ -128,7 +129,7 @@ class VendorController extends BaseController
             
 			//echo '<pre>'; print_r($google); echo '</pre>'; die;
 			
-			//echo 'in empty'; die;
+			//
             
             if(!empty($google)){
 				//echo 'IF GOOGLE ';
@@ -140,9 +141,17 @@ class VendorController extends BaseController
 								// Convert the PHP array to JSON
 				//echo $jsonData = json_encode($d); die;
 
-				$response = array_merge($response,$google);
+				//$response = array_merge($response,$google);
+				//$gresponse = array_merge($response,$google);
+				//echo '<pre>'; print_r($google); echo '</pre>'; 
+				//$arrayFromObject = get_object_vars($gresponse);
+				
+				//echo '<pre>'; print_r($arrayFromObject); echo '</pre>';
+				//die;
+				
+				$response = $this->saveVendorList($google);
                 
-				//echo '<pre>'; print_r($response); echo '</pre>'; 
+				//echo '<pre>'; print_r($response); echo '</pre>'; die;
 				
 				//echo json_encode($response);
 				//die;
@@ -154,6 +163,9 @@ class VendorController extends BaseController
                 //     'search_id' => $queryVendor->id,
                 //     'message' => 'Vendor Found!!',
                 // ];
+				
+				$data_from = 'not_google';
+				
                 $queryVendor['status'] = '1';
                 $queryVendor['response_count'] = count($response);
                 $queryVendor->save();
@@ -189,11 +201,14 @@ class VendorController extends BaseController
 		
         $result = [
             'success' => true,
+			'data_from' => $data_from,
             'data'    => array_slice(json_decode($vendorlist['json_data']),0,20,true),
             'search_id' => $queryVendor->id,
             'total' => $queryVendor['response_count'],
             'message' => 'Vendor Found!!',
         ];
+		
+		
 		
 		//echo '<pre>'; print_r($result); echo '</pre>'; die;
 		
@@ -272,6 +287,9 @@ class VendorController extends BaseController
         $cat = Category::where("id",$category)->first();
         //print_r($cat); die;
         //print_r($location); die;
+		/*if(empty($cat->parent_id) || $cat->parent_id==''){
+			$this->sendResponse([], 'No category!!');
+		}*/
         
         if($cat && $cat->parent_id != 0){
             $pcat = Category::where("id",$cat->parent_id)->first()->title;
@@ -1049,5 +1067,110 @@ class VendorController extends BaseController
         // Do something with the resultArray if needed
         //print_r($resultArray);
     }
+	
+	
+	
+	
+	
+	public function saveVendorList($request){
+        $ids = [];
+		//echo '<pre>'; print_r($request); echo '<pre>'; die;
+        foreach($request as $key => $vendor){
+				//echo $vendor['phone']; die;
+				
+                $vexist = VendorContactInformation::where('mobile_number',$vendor['phone'])->first();
+                $uexist = User::where('contact_number',$vendor['phone'])->first();
+				
+				$new_vendor_id = !empty($uexist)?$uexist->id:"";
+				$new_vendor_id = !empty($new_vendor_id)?$new_vendor_id:"";
+				
+				if(!$vexist){
+                    
+					
+                    if(!$uexist){
+                        $checkCat = Category::where('title',$vendor['category'])->first();
+                        
+						$gcat = [];
+                        if(!$checkCat){
+                            $cat['title'] = $vendor['category'];
+                            $cat['parent_id'] = '-1';
+                            $gcat = Category::create($cat);
+                        }
+						
+						$lat =$vendor['lat_lng'][0];
+                        $lng =$vendor['lat_lng'][1];
+						
+						$hashed_password = Hash::make(Str::random(6));
+                        $records['password'] = $hashed_password;
+                        $records['token'] = Hash::make(Str::random(60));
+                        $records['name'] = $vendor['name'];
+                        $records['contact_number'] = $vendor['phone'];
+                        $records['status'] = '0';
+                        $records['is_vendor'] = '1';
+                        $records['register_by'] = 'google';
+						
+						$user = User::create($records);
+						
+						$ven['user_id'] = $user->id;
+						$ven['business_name'] = $vendor['name'];
+                        $ven['slug'] = str_replace(' ','-',strtolower($vendor['name']));
+                        $new_ven = Vendor::create($ven);
+                        
+                        $validate[] = ['category_id'=>($gcat) ? $gcat['id'] : $checkCat->id,'vendor_id'=>$new_ven->id];
+                        VendorCategory::insert($validate);
+                        
+                        $venContact['lat_lng'] = new Point($lat, $lng);
+                        $venContact['mobile_number'] = $vendor['phone'];
+                        $venContact['address'] = $vendor['address'];
+                        $venContact['vendor_id'] = $new_ven->id;
+                        VendorContactInformation::create($venContact);
+
+                        $venContact['lat_lng'] = new Point($lat, $lng);
+                        $venContact['service_location'] = $vendor['address'];
+                        $venContact['vendor_id'] = $new_ven->id;
+                        VendorServiceLocation::create($venContact);
+
+                        $vendor['result'] = 'OK';
+						
+						//$vendor['new_vendor_id'] = $user->id;
+						$ids['new_vendor_id'] = $user->id;
+						
+                        array_push($ids,$vendor);
+						
+						//echo 'INNER IF';
+						//echo '<pre>'; print_r($ids); echo '</pre>'; die;
+
+                    }
+                    else{
+						//echo 'IN FIRST ELSE';
+						
+						$vendor['new_vendor_id'] = !empty($new_vendor_id)?$new_vendor_id:"";
+                        $vendor['result'] = 'Exist';
+                        array_push($ids,$vendor);
+						
+						//echo 'IN FIRST ELSE';
+						//echo '<pre>'; print_r($ids); echo '</pre>'; die;
+						
+                    }
+                }
+                else{
+					//$ids['new_vendor_id'] = $user->id;
+                    //echo 'IN SECOND ELSE';
+					//echo $new_vendor_id; die;
+					$vendor['new_vendor_id'] = !empty($new_vendor_id)?$new_vendor_id:"";
+					$vendor['result'] = 'Exist';
+                    array_push($ids,$vendor);
+					
+					//echo '<pre>'; print_r($ids); echo '</pre>'; die; 
+					
+                }
+        }
+		
+		//echo '<pre>'; print_r($ids); echo '</pre>'; die;
+        return $ids;
+    }
+	
+	
+	
 
 }
