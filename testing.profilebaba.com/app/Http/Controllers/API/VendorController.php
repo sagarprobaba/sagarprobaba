@@ -42,9 +42,11 @@ use App\Chat;
 use App\ChatHistory;
 use App\VendorList;
 use App\VendorImages;
+use App\VendorServices;
 
 use App\Traits\Firebase;
 use Illuminate\Contracts\Session\Session as SessionSession;
+use Illuminate\Support\Carbon;
 
 class VendorController extends BaseController
 {
@@ -60,7 +62,10 @@ class VendorController extends BaseController
         $data['location'] = $request->location ? (is_array($request->location) && array_key_exists('name', $request->location) ? $request->location['name'] : "") : "";
         $data['lat_lng'] = $request->location ? new Point($request->location['lat'],$request->location['lng']) : null;
         
+		$lat1 = $request->location['lat'];
+		$lon1 = $request->location['lng'];
 		
+		//calculateDistance($lat1, $lon1, $lat2, $lon2)
         
         // $queryVend = QueryForVendor::where(['category_id'=>$request->category_id, 'location'=>$data['location']])->first();
         $queryVendor = QueryForVendor::create($data);
@@ -113,14 +118,31 @@ class VendorController extends BaseController
             $queryVendor['status'] = '1';
             $queryVendor['response_count'] = count($response);
             $queryVendor->save();
-            $vendorlist['json_data'] = json_encode($response);
+			
+			//echo 'Not empty';
+			
+			//echo '<pre>'; print_r($response); echo '</pre>'; //die;
+			//echo $latLng = $response['lat_lng'];
+			//echo $latLng = $response->lat_lng; die;
+			//$latitude = $latLng[0];
+			//$longitude = $latLng[1];
+
+			
+			//echo $lat2 = !empty($latitude)?$latitude:0;
+			//echo $lon2 = !empty($longitude)?$longitude:0; die;
+            
+			
+			
+			//echo $calculated_distance = $this->calculateDistance($lat1, $lon1, $lat2, $lon2); die;
+			
+			$vendorlist['json_data'] = json_encode($response);
 			$data_from = 'google';
             // return response()->json($result, 200,[],JSON_INVALID_UTF8_IGNORE);
             
             //echo 'Not empty'; die;
         }
         else{
-            //echo 'in empty'; die;
+            //echo 'in empty'; //die;
             
             //$google = $this->getGoogleVendor($request->category_id, $request->location ?? "", count($response));
             
@@ -164,6 +186,12 @@ class VendorController extends BaseController
                 //     'message' => 'Vendor Found!!',
                 // ];
 				
+				//$lat2 = !empty($response['lat_lng'])?$response['lat_lng'][0]:0;
+				//$lon2 = !empty($response['lat_lng'])?$response['lat_lng'][1]:0;
+				
+				
+				//$calculated_distance = $this->calculateDistance($lat1, $lon1, $lat2, $lon2); //die;
+				
 				$data_from = 'not_google';
 				
                 $queryVendor['status'] = '1';
@@ -183,7 +211,9 @@ class VendorController extends BaseController
             }
         }
         
-        //
+        //calculateDistance($lat1, $lon1, $lat2, $lon2) {
+		//lat1, lon1 from request
+		//lat2, lon2 from response
         
 		//echo '<pre>'; print_r($vendorlist); echo '</pre>'; die;
 		
@@ -307,7 +337,7 @@ class VendorController extends BaseController
             //print($host); //die;
             //echo '<br/>';
             
-            $url = $host."/google/search?category=".$cat_title."&location=".$area."&state=Delhi&size=1&search_category=".$category;
+            $url = $host."/google/search?category=".$cat_title."&location=".$area."&state=Delhi&size=100&search_category=".$category;
             
             //print($url); die;
             
@@ -857,8 +887,19 @@ class VendorController extends BaseController
         $plan['reciever_id'] = $request->reciever_id;
         $plan['source'] = $request->source;
         $plan['main_cat'] = $request->main_cat;
-        VendorLead::create($plan);
-        return $this->sendResponse([], 'Generate new Lead!!');
+		$plan['location'] = $request->location;
+		
+        $res = VendorLead::create($plan);
+		//echo '<pre>'; print_r($res); echo '</pre>';  die;
+		if($res){
+			return $this->sendResponse([], 'Generate new Lead!!');
+		}else{
+			return $this->sendResponse([], 'Not Generated!!');
+		}
+
+		
+
+		
     }
 
     public function get_all_vendor_lead($id, Request $request) {
@@ -1133,7 +1174,8 @@ class VendorController extends BaseController
                         $vendor['result'] = 'OK';
 						
 						//$vendor['new_vendor_id'] = $user->id;
-						$ids['new_vendor_id'] = $user->id;
+						//$ids['new_vendor_id'] = $user->id;
+						$vendor['new_vendor_id'] = !empty($user->id)?$user->id:"";
 						
                         array_push($ids,$vendor);
 						
@@ -1171,6 +1213,436 @@ class VendorController extends BaseController
     }
 	
 	
+	
+	
+	public function calculateDistance($lat1, $lon1, $lat2, $lon2) {
+		//lat1, lon1 from request
+		//lat2, lon2 from response
+		
+		//$p = 0.017453292519943295;
+		//$c = cos;
+		//$a = 0.5 - cos(($lat2 - $lat1) * $p) / 2 + cos($lat1 * $p) * cos($lat2 * $p) * (1 - cos(($lon2 - $lon1) * $p)) / 2;
+		//$a = 0.5 - (float)cos(($lat2 - $lat1) * $p) / 2 + cos($lat1 * $p) * cos($lat2 * $p) * (1 - cos(($lon2 - $lon1) * $p)) / 2;
+		
+		//return (12742 * round(asin(sqrt($a))));
+		
+		//echo $lat1.'--c1--'.$lon1.'--c2--'.$lat2.'--c3--'.$lon2; die;
+		
+		$p = 0.017453292519943295;
+		$latDiff = (float)($lat2 - $lat1);
+		$lonDiff = (float)($lon2 - $lon1);
+
+		$a = 0.5 - cos($latDiff * $p) / 2 + cos($lat1 * $p) * cos($lat2 * $p) * (1 - cos($lonDiff * $p)) / 2;
+		$distance = 12742 * asin(sqrt((float)$a));
+
+		// Optionally, round the distance to a specific decimal place if needed
+		$roundedDistance = round($distance, 2);
+
+		return $roundedDistance;
+		
+		
+		
+		
+		
+		
+	}
+	
+	
+	
+	public function getServiceQueries($id) {
+        $result = $whatsapp_lead_array = $call_lead_array = $cdata = [];
+        //echo $id; //die; 
+		
+		$whatsapp_data = VendorLead::where('vendor_id', $id)->where('source', 'whatsapp')->get();
+		$call_data = VendorLead::where('vendor_id', $id)->where('source', 'call')->get(); 
+		
+		//echo '<pre>'; print_r($whatsapp_data); echo '<pre>'; die;
+		//echo '<pre>'; print_r($call_data); echo '<pre>'; die;
+		
+		//$id - vendor id
+		//{{live_url}}api/get-call-history/27 - this is vendor id
+		//echo $id;
+		
+		if(!empty($whatsapp_data)){
+			foreach ($whatsapp_data as $whatsapp_lead) {
+				// Accessing individual attributes
+				$id = $whatsapp_lead->id;
+				$vendorId = $whatsapp_lead->vendor_id;
+				$source = $whatsapp_lead->source;
+				// ... access other attributes as needed
+
+				// You can also access the attributes as an array
+				$whatsapp_lead_array[] = $whatsapp_lead->attributesToArray();
+
+				// Do something with the data...
+				// For example, you can print the data:
+				
+			}
+		}
+		
+		
+		
+		if(!empty($call_data)){
+			foreach ($call_data as $call_lead) {
+				// Accessing individual attributes
+				$id = $call_lead->id;
+				$vendorId = $call_lead->vendor_id;
+				$source = $call_lead->source;
+				// ... access other attributes as needed
+
+				// You can also access the attributes as an array
+				$call_lead_array[] = $call_lead->attributesToArray();
+
+				// Do something with the data...
+				// For example, you can print the data:
+				
+			}
+		}
+		
+		//print_r($whatsapp_lead_array); die;
+		
+		//print_r($call_lead_array);
+		//die;
+		
+		
+		if($whatsapp_lead_array){
+            foreach($whatsapp_lead_array as $a=>$d) {
+				
+				//echo '<pre>'; print_r($d); echo '<pre>'; die;
+                $id = !empty($d['vendor_id'])?$d['vendor_id']:"";
+				$reciever_id = !empty($d['reciever_id'])?$d['reciever_id']:"";
+				//$v_details = Vendor::where("user_id",$id)->first(); //die;
+				//echo $id; die;
+				
+				$cu_details = User::where("id",$reciever_id)->first();
+				$v_details = Vendor::where("user_id",$id)->first();
+				
+				//$v_details = Vendor::where('user_id', $id)->get();
+				
+				//{{live_url}}api/get-call-history/27 - this is vendor id
+				
+				if(empty($v_details)){
+					return $this->sendResponse([], 'No details');
+				}else{
+					
+					$business_name = !empty($v_details->business_name)?$v_details->business_name:""; //die;
+					$customer_name = !empty($cu_details->name)?$cu_details->name:""; //die;
+					
+					$catid = $d['main_cat'];
+					$cat = Category::where("id",$catid)->first();
+					//echo $cat->title;
+					//echo '<pre>'; print_r($cat); echo '<pre>'; die;
+					
+					$vinfo = VendorContactInformation::where("vendor_id",$id)->first()->mobile_number; //die;
+					
+					//if($d->source=='whatsapp'){
+						$res[$a]['id'] = $d['id'];
+						$res[$a]['reciever_id'] = $d['reciever_id'];
+						$res[$a]['category_id'] = $catid;
+						$res[$a]['source'] = $d['source'];
+						$res[$a]['location'] = $d['location'];
+						$res[$a]['vendor_id'] = $id;
+						
+						$res[$a]['vendor'] = $business_name;
+						$res[$a]['customer_name'] = $customer_name;
+						
+						$res[$a]['category_title'] = !empty($cat->title)?$cat->title:"";
+						
+						
+						$res[$a]['contact_number'] = !empty($vinfo)?$vinfo:"";
+					//}
+					
+					//echo '<pre>'; print_r($res); echo '<pre>'; die;
+					
+					$cdata['wp_message'] = $res;
+					//echo '<pre>'; print_r($res); echo '<pre>'; //die;
+					
+					
+				}	
+				
+					
+				
+				
+				//{{live_url}}api/get-call-history/27 - this is vendor id
+					
+					
+				
+				
+				
+            }
+			
+			//echo '<pre>'; print_r($cdata); echo '<pre>'; die;
+			
+        }
+		
+		
+		
+		if($call_lead_array){
+            foreach($call_lead_array as $a=>$d) {
+				
+				//echo '<pre>'; print_r($d); echo '<pre>'; die;
+                $id = $d['vendor_id'];
+				//$v_details = Vendor::where("user_id",$id)->first(); //die;
+				//echo $id; die;
+				$v_details = Vendor::where("user_id",$id)->first();
+				
+				//{{live_url}}api/get-call-history/27 - this is vendor id
+				//echo $v_details->business_name;
+				//echo '<pre>'; print_r($v_details); echo '<pre>'; die;
+				
+				if(empty($v_details)){
+					return $this->sendResponse([], 'No vendor');
+				}else{
+					
+					
+					
+					$business_name = !empty($v_details->business_name)?$v_details->business_name:""; //die;
+					$catid = $d['main_cat'];
+					$cat = Category::where("id",$catid)->first();
+					
+					$vinfo = VendorContactInformation::where("vendor_id",$id)->first()->mobile_number; //die;
+					
+					//if($d->source=='whatsapp'){
+						$res[$a]['id'] = $d['id'];
+						$res[$a]['reciever_id'] = $d['reciever_id'];
+						$res[$a]['category_id'] = $catid;
+						$res[$a]['source'] = $d['source'];
+						$res[$a]['location'] = $d['location'];
+						$res[$a]['vendor_id'] = $id;
+						
+						$res[$a]['vendor'] = $business_name;
+						$res[$a]['category_title'] = !empty($cat->title)?$cat->title:"";
+						
+						
+						$res[$a]['contact_number'] = !empty($vinfo)?$vinfo:"";
+					//}
+					
+					//echo '<pre>'; print_r($res); echo '<pre>'; die;
+					
+					$cdata['call'] = $res;
+					//echo '<pre>'; print_r($res); echo '<pre>'; die;
+					
+					
+				}	
+				
+					
+				
+				
+				//{{live_url}}api/get-call-history/27 - this is vendor id
+					
+					
+				
+				
+				
+            }
+        }
+		
+		//echo '<pre>'; print_r($cdata); echo '<pre>'; die;
+		//die;
+		
+		
+		
+		
+		//echo '<pre>'; print_r($cdata); echo '<pre>'; die;
+		
+		//echo '<pre>'; print_r($d); echo '<pre>'; die;
+		//echo '<pre>'; print_r($data); echo '<pre>'; die;
+		
+        //$result['call'] = $data;
+		
+		
+		//$result = $cdata;
+		//echo '<pre>'; print_r($result); echo '<pre>'; die;
+		//$result['message'] = $mHistory;
+		
+		if(empty($cdata['call']) && empty($cdata['wp_message']) ){
+			return $this->sendResponse('', 'No Data');
+		}else{
+		
+			$result = $cdata;
+			return $this->sendResponse($result, 'Call History');
+		}
+		
+
+        //return $this->sendResponse($result, 'Call History');
+    }
+	
+	public function vendorDelete($id){
+        $u = User::where(['id'=> $id,'status'=>'1','is_vendor'=>'1'])->get()->first();
+        if($u){
+            
+			//echo '<pre>'; print_r($u); echo '</pre>';
+			$u['is_delete'] = '1';
+			$u['deleted_at'] = Carbon::now();
+            $u->save();
+			return $this->sendResponse("", 'Account Deleted'); 
+        }
+    }
+	
+	
+	
+	
+	public function getAllServiceQueries($id) {
+        $result = $whatsapp_lead_array = $call_lead_array = $cdata = [];
+        //echo $id; //die; 
+		
+		$whatsapp_data = VendorLead::where('vendor_id', $id)->get();
+		//$call_data = VendorLead::where('vendor_id', $id)->where('source', 'call')->get(); 
+		
+		//echo '<pre>'; print_r($whatsapp_data); echo '<pre>'; die;
+		//echo '<pre>'; print_r($call_data); echo '<pre>'; die;
+		
+		//$id - vendor id
+		//{{live_url}}api/get-call-history/27 - this is vendor id
+		//echo $id;
+		
+		if(!empty($whatsapp_data)){
+			foreach ($whatsapp_data as $whatsapp_lead) {
+				// Accessing individual attributes
+				$id = $whatsapp_lead->id;
+				$vendorId = $whatsapp_lead->vendor_id;
+				$source = $whatsapp_lead->source;
+				// ... access other attributes as needed
+
+				// You can also access the attributes as an array
+				$whatsapp_lead_array[] = $whatsapp_lead->attributesToArray();
+
+				// Do something with the data...
+				// For example, you can print the data:
+				
+			}
+		}
+		
+		
+		
+		
+		
+		//print_r($whatsapp_lead_array); die;
+		
+		//print_r($call_lead_array);
+		//die;
+		
+		
+		if($whatsapp_lead_array){
+            foreach($whatsapp_lead_array as $a=>$d) {
+				
+				//echo '<pre>'; print_r($d); echo '<pre>'; die;
+                $id = !empty($d['vendor_id'])?$d['vendor_id']:"";
+				$reciever_id = !empty($d['reciever_id'])?$d['reciever_id']:"";
+				//$v_details = Vendor::where("user_id",$id)->first(); //die;
+				//echo $id; die;
+				
+				$cu_details = User::where("id",$reciever_id)->first();
+				$v_details = Vendor::where("user_id",$id)->first();
+				
+				//$v_details = Vendor::where('user_id', $id)->get();
+				
+				//{{live_url}}api/get-call-history/27 - this is vendor id
+				
+				if(empty($v_details)){
+					return $this->sendResponse([], 'No details');
+				}else{
+					
+					$business_name = !empty($v_details->business_name)?$v_details->business_name:""; //die;
+					$customer_name = !empty($cu_details->name)?$cu_details->name:""; //die;
+					
+					$catid = $d['main_cat'];
+					$cat = Category::where("id",$catid)->first();
+					//echo $cat->title;
+					//echo '<pre>'; print_r($cat); echo '<pre>'; die;
+					
+					$vinfo = VendorContactInformation::where("vendor_id",$id)->first()->mobile_number; //die;
+					
+					//if($d->source=='whatsapp'){
+						$res[$a]['id'] = $d['id'];
+						$res[$a]['reciever_id'] = $d['reciever_id'];
+						$res[$a]['category_id'] = $catid;
+						$res[$a]['source'] = $d['source'];
+						$res[$a]['location'] = $d['location'];
+						$res[$a]['vendor_id'] = $id;
+						
+						$res[$a]['vendor'] = $business_name;
+						$res[$a]['customer_name'] = $customer_name;
+						
+						$res[$a]['category_title'] = !empty($cat->title)?$cat->title:"";
+						
+						
+						$res[$a]['contact_number'] = !empty($vinfo)?$vinfo:"";
+					//}
+					
+					//echo '<pre>'; print_r($res); echo '<pre>'; die;
+					
+					$cdata['all_message'] = $res;
+					//echo '<pre>'; print_r($res); echo '<pre>'; //die;
+					
+					
+				}	
+				
+					
+				
+				
+				//{{live_url}}api/get-call-history/27 - this is vendor id
+					
+					
+				
+				
+				
+            }
+			
+			//echo '<pre>'; print_r($cdata); echo '<pre>'; die;
+			
+        }
+		
+		
+		
+		
+		
+		
+		
+        //$result['call'] = $data;
+		
+		
+		//$result = $cdata;
+		//echo '<pre>'; print_r($result); echo '<pre>'; die;
+		//$result['message'] = $mHistory;
+		
+		if(empty($cdata['all_message']) ){
+			return $this->sendResponse('', 'No Data');
+		}else{
+		
+			$result = $cdata;
+			return $this->sendResponse($result, 'Call History');
+		}
+		
+
+        //return $this->sendResponse($result, 'Call History');
+    }
+	
+	
+	public function saveVendorServices(Request $request) {
+        
+		$data = $request->all();
+		if ($request->hasFile('business_logo')) {
+			if ($request->file('business_logo')->isValid()) {
+
+				$fileName=$request->file('business_logo')->getClientOriginalName();
+				$fileName =time()."_".$fileName;
+
+				//upload
+				$request->file('business_logo')->move('uploads/users/', $fileName);
+				$data['business_logo']=$fileName;
+			}
+		}
+		
+		VendorServices::create($data);
+        return $this->sendResponse([], 'Service Saved!!');
+    }
+	
+	
+	public function getVendorOtherServices($id) {
+        $data = VendorServices::where('vendor_id', $id)->get();
+        return $this->sendResponse($data, 'Other Services List!!'); 
+    }
 	
 
 }

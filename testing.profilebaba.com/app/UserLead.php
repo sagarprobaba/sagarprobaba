@@ -4,17 +4,16 @@ namespace App;
 
 use Illuminate\Database\Eloquent\Model;
 
-class VendorLead extends Model
+class UserLead extends Model
 {
     protected $primaryKey = 'id';
-	protected $table = 'vendor_lead';
+	protected $table = 'user_lead';
 
     protected $fillable=[
         'search_id',
         'chat_id',
         'call_id',
-        'vendor_id',
-        'vendor_type',
+        'user_id',
         'status',
         'reciever_id',
         'source',
@@ -22,7 +21,7 @@ class VendorLead extends Model
 		'location'
     ];
 
-    public function vendor_query() {
+    /*public function vendor_query() {
         return $this->hasOne('App\QueryForVendor', 'id', 'search_id');
     }
 
@@ -44,6 +43,6 @@ class VendorLead extends Model
 
     public function google() {
         return $this->hasOne('App\GoogleVendor', 'id', 'vendor_id');
-    }
+    }*/
 
 }

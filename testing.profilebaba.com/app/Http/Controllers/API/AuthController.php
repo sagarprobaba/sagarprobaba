@@ -71,7 +71,7 @@ class AuthController extends BaseController
         $authUser = User::where(['contact_number'=> $request->contact_number])->get()->first();
         if($authUser){
             if(Hash::check($request->password,$authUser->password)){
-                if($authUser->status == '1'){
+                if($authUser->status == '1' && $authUser->is_delete == '0'){
                     $success['token'] =  $authUser->token;
                     $success['user'] =  $authUser;
                     $authUser['device_key'] = $request->device_key;
@@ -195,7 +195,9 @@ class AuthController extends BaseController
         $data = $request;
         $u = User::where(['contact_number'=> $data['contact_number'],'status'=>'1'])->get()->first();
         if($u){
-            $u['is_vendor'] = '1';
+            
+			//echo '<pre>'; print_r($u); echo '</pre>';
+			$u['is_vendor'] = '1';
             $u->save();
         }
         else{
@@ -204,10 +206,29 @@ class AuthController extends BaseController
             $user['password'] = Hash::make($data['password']);
             $user['token'] = Hash::make(Str::random(60));
             $user['is_vendor'] = '1';
-            $u = User::create($user);
+			
+			
+			$records['company_category'] = $data['company_category'];
+			
+			$records['company_name'] = $data['company_name'];
+			$records['company_email'] = $data['company_email'];
+			$records['company_phone'] = $data['company_phone'];
+        
+			$records['company_address'] = $data['company_address'];
+			$records['about_company'] = $data['about_company'];
+			//$records['latitude'] = $request->latitude;
+			//$records['longitude'] = $request->longitude;
+			
+			$u = User::create($user);
             $new = true;
         }
-            $vendor['user_id'] = $u->id;
+            
+			
+
+			// Dump and Die
+			//dd($u->toSql());
+
+			$vendor['user_id'] = $u->id;
             $business = $data['business_name'] ?? $data['name'];
             $vendor['business_name'] = $business;
             $vendor['slug'] = str_replace(' ','-',strtolower($business));
@@ -483,7 +504,7 @@ class AuthController extends BaseController
 		
 		
 		$search = $request['search'];
-		$name = $request['name'];
+		$name = $request['name']; 
 		$lat = $request['lat'];
 		$lng = $request['lng'];
 		
@@ -507,12 +528,19 @@ class AuthController extends BaseController
         $json =json_decode($result);
 		echo '<pre>'; print_r($json); echo '</pre>'; die;*/
         
+		/*echo '<pre>'; print_r($category); echo '</pre>'; 
+		echo '<pre>'; print_r($svendor); echo '</pre>'; 
+		echo '<pre>'; print_r($location); echo '</pre>'; */
+		//die;
+		
         if($category){
             foreach($category as $cat){
                 $ven = VendorCategory::where('category_id',$cat['id'])->get();
                 if($ven){
                     foreach($ven as $v){
                         $vendor = $this->getVendorDetail($v['vendor_id'], $userlocation);
+						//echo '<pre>'; print_r($vendor); echo '</pre>'; die;
+						
                         if($vendor != ""){
                             array_push($data,$vendor);
                         }
@@ -526,7 +554,9 @@ class AuthController extends BaseController
         if($svendor){
             foreach($svendor as $v){
                 $vendor = $this->getVendorDetail($v['id'], $userlocation);
-                if($vendor != ""){
+                //echo '<pre>'; print_r($vendor); echo '</pre>'; die;
+				
+				if($vendor != ""){
                     array_push($data,$vendor);
                 }
             }
@@ -534,7 +564,9 @@ class AuthController extends BaseController
 			//echo 'in vend';
 			
         }
-
+		
+		//echo '<pre>'; print_r($data); echo '</pre>'; die;
+		
         if($location){
             foreach($location as $loc){
                 $vendor = $this->getVendorDetail($loc['vendor_id'], $userlocation);
@@ -547,16 +579,22 @@ class AuthController extends BaseController
 			
         }
         //echo $userlocation; //die;
+		
+		//echo '<pre>'; print_r($svendor); echo '</pre>'; die;
+		
         $response = [];
         
         //echo '<pre>'; print_r($data); echo '</pre>'; die;
+		
         if($data){
             foreach($data as $d){
                 foreach($d as $v){
                     $response[] = $v;
                 }
             }
-            $gvendres = $this->getGoogleVendorList($search,$userlocation);
+            //$gvendres = $this->getGoogleVendorList($search,$userlocation);
+			//echo '<pre>'; print_r($gvendres); die;
+			
             $response = json_decode(json_encode($response), true);
             $newres = [];
             $used = [];
@@ -566,16 +604,38 @@ class AuthController extends BaseController
                     $newres[$key] = $line; 
                 } 
             }
-            
-            $response = array_merge($newres, $gvendres);
+            //echo 'IN DB';
+            $response = $newres; //array_merge($newres, $gvendres);
 			
-			//echo '<pre>'; print_r($response); die;
+			//echo '<pre>'; print_r($response); echo '</pre>'; die;
         }
         else{
             //echo 'IN EMPTY'; die;
 			
+			//echo 'NOT IN DB';
+			
 			$gresponse = $this->getGoogleVendorList($search,$userlocation);
+			
+			//echo '<pre>'; print_r($gresponse); echo '</pre>'; die;
+			
 			$response = $this->saveVendor($gresponse);
+			
+			/*$response = json_decode(json_encode($response), true);
+			
+			// Check if "data" is set and is an array
+			if (isset($response['data']) && is_array($response['data'])) {
+				// Convert the associative array to a numerically indexed array
+				$response['data'] = array_values($response['data']);
+			}*/
+			
+			// Encode the modified array back to JSON
+			//$response = json_encode($response, JSON_PRETTY_PRINT);
+
+			// Output the result
+			//echo $newJsonData;
+			
+			//echo '<pre>'; print_r($response); echo '</pre>'; die;
+			
 			
 			//$response = $this->getGoogleVendorList($search,$userlocation);
 			
@@ -603,10 +663,10 @@ class AuthController extends BaseController
         $having = "";
         if($location != ''){
             $cond = $cond.", ST_Distance_Sphere(Point(".$lng.",".$lat."), vs.lat_lng) * 0.00099 AS 'distance'";
-            $having = $having."HAVING distance<50 ORDER BY distance ASC";
+            $having = $having." HAVING distance<50 ORDER BY distance ASC";
             $join = $join." JOIN vendor_service_location AS vs ON vs.vendor_id = v.id";
         }
-        $select = "SELECT ".$cond." FROM vendor AS v ".$join." where ".$where." GROUP BY v.id ".$having;
+        $select = "SELECT ".$cond." FROM vendor AS v ".$join." where ".$where." GROUP BY v.id ".$having; //die;
         $query = DB::select($select);
         // dd(DB::getQueryLog());
     
@@ -643,9 +703,21 @@ class AuthController extends BaseController
             
             
             foreach($res as $v){
-                
-                $v['contact_number'] = $v['phone'];
-                $v['category_id'] = Category::where('title','Like','%'.$v['category'].'%')->first()->id;
+                //echo $v['category'];
+				$v['contact_number'] = $v['phone'];
+				
+				//echo Category::where('title','Like','%'.$v['category'].'%')->first()->id; die;
+				//$vid = Category::where('title','Like','%'.$v['category'].'%')->first()->id;
+				
+				
+				$category = Category::where('title', 'like', '%' . $v['category'] . '%')->first();
+				$vid = $category ? $category->id : null;
+				$vid = !empty($vid)?$vid:"";
+                $v['category_id'] = $vid;
+				
+				
+				//die;
+
 				$v['service_location'] = $area;
                 $v['business_name'] = $v['name'];
                 
@@ -675,6 +747,9 @@ class AuthController extends BaseController
             }
         //print_r($vendor); die;
         usort($vendor, fn($a, $b) => $a['distance'] <=> $b['distance']);
+		
+		//echo '<pre>'; print_r($vendor); echo '<pre>'; die;
+		
         return $vendor;
     }
 	
@@ -740,8 +815,8 @@ class AuthController extends BaseController
 
                         $vendor['result'] = 'OK';
 						
-						//$vendor['new_vendor_id'] = $user->id;
-						$ids['new_vendor_id'] = $user->id;
+						$vendor['new_vendor_id'] = !empty($user->id)?$user->id:"";
+						//$ids['new_vendor_id'] = $user->id;
 						
                         array_push($ids,$vendor);
 						
