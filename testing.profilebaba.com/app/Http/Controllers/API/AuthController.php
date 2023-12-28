@@ -97,6 +97,7 @@ class AuthController extends BaseController
     {
         
         //dd($request->contact_number);
+		//echo $request->is_vendor; die;
         $validator = Validator::make($request->all(), [
             'name' => 'required',
             'lastname' => 'required',
@@ -131,7 +132,7 @@ class AuthController extends BaseController
         $records['password'] = $hashed_password;
         $records['token'] = Hash::make(Str::random(60));
         $records['status'] = '0';
-        $records['is_vendor'] = '0';
+        $records['is_vendor'] = $request->is_vendor;
         $records['register_by'] = 'app';
         $records['lastname'] = $request->lastname;
         
