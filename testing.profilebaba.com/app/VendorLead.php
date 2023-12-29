@@ -19,7 +19,8 @@ class VendorLead extends Model
         'reciever_id',
         'source',
         'main_cat',
-		'location'
+		'location',
+		'created_at'
     ];
 
     public function vendor_query() {

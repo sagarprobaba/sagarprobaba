@@ -75,7 +75,7 @@ class VendorController extends BaseController
         $category = [["id"=>$request->category_id]];
 		//echo $request->category_id; die;
 		
-        $category = array_merge($category,Category::where("parent_id",$request->category_id)->get()->toArray());
+        $category = array_merge($category,Category::where("parent_id",$request->category_id)->get()->toArray()); 
         
 		//echo '<pre>'; print_r($queryVendor); echo '</pre>'; die;
         
@@ -135,7 +135,16 @@ class VendorController extends BaseController
 			
 			//echo $calculated_distance = $this->calculateDistance($lat1, $lon1, $lat2, $lon2); die;
 			
-			$vendorlist['json_data'] = json_encode($response);
+			
+			$response =  $this->arrayFormat($response,$request->location); 
+			//die;
+			$vendorlist['json_data'] = json_encode($response['data']);
+			
+			
+			
+			
+			//echo '<pre>'; print_r($vendorlist); echo '</pre>'; die;
+			
 			$data_from = 'google';
             // return response()->json($result, 200,[],JSON_INVALID_UTF8_IGNORE);
             
@@ -202,7 +211,7 @@ class VendorController extends BaseController
 				
 				$vendorlist['json_data'] = json_encode($response);
                 
-				
+				//echo '<pre>'; print_r($vendorlist); echo '</pre>'; die; 
 				
 				//return $result = response()->json($result, 200,[],JSON_INVALID_UTF8_IGNORE);
 				
@@ -399,7 +408,17 @@ class VendorController extends BaseController
 				die;*/
 				//echo Category::where('title','Like','%'.$v['category'].'%')->first()->id; die;
 				
-				$v['category_id'] = Category::where('title','Like','%'.$v['category'].'%')->first()->id;
+				//$v['category_id'] = Category::where('title','Like','%'.$v['category'].'%')->first()->id;
+				
+				$category = Category::where('title', 'like', '%' . $v['category'] . '%')->first();
+				$vid = $category ? $category->id : null;
+				
+				//echo '<pre>'; print_r($category); echo '</pre>'; die;
+				
+				$vid = !empty($vid)?$vid:"";
+                $v['category_id'] = $vid;
+				
+				
 				$v['service_location'] = $area;
                 $v['business_name'] = $v['name'];
                 
@@ -419,7 +438,11 @@ class VendorController extends BaseController
 					)*/
                     //$dist = CustomValue::getGoogleDistance($v['latitude'],$v['longitude']); //die;
 					
-					$dist = CustomValue::getGoogleDistance($location['lat'],$location['lng']); //die;
+					//$dist = CustomValue::getGoogleDistance($location['lat'],$location['lng']); //die;
+					
+					$lat1 = $location['lat'];
+					$lng1 = $location['lng'];
+                    $dist = CustomValue::getGoogleDistance($lat1,$lng1,$v['latitude'],$v['longitude']);
 					
                 }
                 
@@ -746,6 +769,12 @@ class VendorController extends BaseController
                         $venContact['service_location'] = $vendor['address'];
                         $venContact['vendor_id'] = $new_ven->id;
                         VendorServiceLocation::create($venContact);
+						
+						
+						/*$lat1 = $location['lat'];
+						$lng1 = $location['lng'];
+						$dist = CustomValue::getGoogleDistance($lat1,$lng1,$v['latitude'],$v['longitude']);*/
+						
 
                         $vendor['result'] = 'OK';
                         array_push($ids,$vendor);
@@ -1177,6 +1206,11 @@ class VendorController extends BaseController
 						//$ids['new_vendor_id'] = $user->id;
 						$vendor['new_vendor_id'] = !empty($user->id)?$user->id:"";
 						
+						//$lat1 = ;
+						//$lng1 = ;
+						//$dist = CustomValue::getGoogleDistance($lat1,$lng1,$v['latitude'],$v['longitude']);
+						
+						
                         array_push($ids,$vendor);
 						
 						//echo 'INNER IF';
@@ -1249,12 +1283,99 @@ class VendorController extends BaseController
 	
 	
 	
-	public function getServiceQueries($id) {
+	public function getServiceQueries($id, Request $request) {
         $result = $whatsapp_lead_array = $call_lead_array = $cdata = [];
         //echo $id; //die; 
 		
-		$whatsapp_data = VendorLead::where('vendor_id', $id)->where('source', 'whatsapp')->get();
-		$call_data = VendorLead::where('vendor_id', $id)->where('source', 'call')->get(); 
+		$from_date = "";
+        $to_date = "";
+        $qstatus = ""; 
+		
+        if($request->from_date){
+            //echo 'in_date';
+			
+			$from_date = $request->from_date;
+            $to_date = $request->to_date;
+			
+			
+			$startDate = Carbon::parse($from_date)->startOfDay();
+			$endDate = Carbon::parse($to_date)->endOfDay();
+			
+			
+			$whatsapp_data = VendorLead::where('vendor_id', $id)->where('source', 'whatsapp')->where("created_at",">=",$startDate)->where("created_at","<=",$endDate)->get();
+			$call_data = VendorLead::where('vendor_id', $id)->where('source', 'call')->where("created_at",">=",$startDate)->where("created_at","<=",$endDate)->get(); 
+			
+			
+			//$whatsapp_data = VendorLead::whereBetween('created_at', [$from_date, $to_date])->get();
+			
+			
+			//SELECT * FROM `vendor_lead` WHERE `created_at` >= '2023-12-28'
+			//SELECT * FROM `vendor_lead` WHERE `created_at` >= '2023-12-28' and `created_at` <= '2023-12-28';
+
+			
+			
+			//$query = VendorLead::where('vendor_id', $id)->where('source', 'whatsapp')->where("created_at",">=",$from_date)->where("created_at","<=",$to_date);
+
+			// Print the raw SQL query
+			//dd($query->toSql());
+
+			// Execute the query and get the results
+			//$leads = $query->get();
+			
+			
+			
+			
+        }else{
+			
+			//echo 'not_in_date';
+			
+			$whatsapp_data = VendorLead::where('vendor_id', $id)->where('source', 'whatsapp')->get();
+			$call_data = VendorLead::where('vendor_id', $id)->where('source', 'call')->get(); 
+		}
+		
+		
+        /*if($request->status != ""){
+            $qstatus = $request->status;
+        }*/
+		
+		
+		/*$request = request();
+
+		$name=$request->name;
+		$email=$request->email;
+		$phone=$request->phone;
+
+		$form = $request->form;
+		$to = $request->to;
+
+		User::
+
+		when($name, function ($query) use ($name) {
+			return $query->where('users.name', "like","%" . $name . "%");
+		})
+		->when($email, function ($query) use ($email) {
+			return $query->where('users.email', "like","%" . $email . "%");
+		})
+		->when($phone, function ($query) use ($phone) {
+			return $query->where('users.contact_number', "like","%" . $phone . "%");
+		})
+		->when($form, function ($query) use ($form,$to) {
+			if (!$form) {
+				return $query->whereDate('users.created_at', $to);
+			}
+			if (!$to) {
+				return $query->whereDate('users.created_at', $form);
+			}
+			return $query->whereBetween('users.created_at', [$form,$to]);
+		});*/
+		
+		
+		
+		
+		
+		
+		//$whatsapp_data = VendorLead::where('vendor_id', $id)->where('source', 'whatsapp')->get();
+		//$call_data = VendorLead::where('vendor_id', $id)->where('source', 'call')->get(); 
 		
 		//echo '<pre>'; print_r($whatsapp_data); echo '<pre>'; die;
 		//echo '<pre>'; print_r($call_data); echo '<pre>'; die;
@@ -1299,7 +1420,7 @@ class VendorController extends BaseController
 			}
 		}
 		
-		//print_r($whatsapp_lead_array); die;
+	//print_r($whatsapp_lead_array); die;
 		
 		//print_r($call_lead_array);
 		//die;
@@ -1345,11 +1466,12 @@ class VendorController extends BaseController
 						
 						$res[$a]['vendor'] = $business_name;
 						$res[$a]['customer_name'] = $customer_name;
-						
 						$res[$a]['category_title'] = !empty($cat->title)?$cat->title:"";
-						
-						
 						$res[$a]['contact_number'] = !empty($vinfo)?$vinfo:"";
+						
+						$res[$a]['created_at'] = $d['created_at'];
+						$res[$a]['updated_at'] = $d['updated_at'];
+						
 					//}
 					
 					//echo '<pre>'; print_r($res); echo '<pre>'; die;
@@ -1415,6 +1537,10 @@ class VendorController extends BaseController
 						
 						
 						$res[$a]['contact_number'] = !empty($vinfo)?$vinfo:"";
+						$res[$a]['created_at'] = $d['created_at'];
+						$res[$a]['updated_at'] = $d['updated_at'];
+						
+						
 					//}
 					
 					//echo '<pre>'; print_r($res); echo '<pre>'; die;
@@ -1644,5 +1770,143 @@ class VendorController extends BaseController
         return $this->sendResponse($data, 'Other Services List!!'); 
     }
 	
-
+	public function arrayFormat($res,$location){
+		$d = $res_arr = [];
+		if(!empty($res)){
+			$lat1 = $location['lat'];
+			$lng1 = $location['lng'];
+			
+			foreach($res as $k=>$b){
+				
+				
+				//echo '<pre>'; print_r($b); echo '</pre>'; 
+				//echo $b->name;
+				//die;
+				$res_arr[$k]['name'] = $b->name;
+				$res_arr[$k]['phone'] = $b->contact_number;
+				$catid = $b->category_id;
+				$cat = Category::where("id",$catid)->first();
+				$res_arr[$k]['category'] = $cat->title;
+				$res_arr[$k]['address'] = $b->address;
+				
+				$res_arr[$k]['address'] = $b->address;
+				$res_arr[$k]['category_id'] = $catid;
+				$res_arr[$k]['new_vendor_id'] = $b->user_id;
+				$res_arr[$k]['lat_lng'] = $b->lat_lng;
+				
+				$lat2 = $b->lat_lng[0] ;
+				$lng2 = $b->lat_lng[1] ;
+				
+				$res_arr[$k]['is_vendor'] = $b->is_vendor;
+				$res_arr[$k]['company_category'] = $b->company_category;
+				$res_arr[$k]['contact_number'] = $b->contact_number;
+				
+				$res_arr[$k]['latitude'] = $b->latitude;
+				$res_arr[$k]['longitude'] = $b->longitude;
+				$res_arr[$k]['id'] = $b->id;
+				 
+				$dist = CustomValue::getGoogleDistance($lat1,$lng1,$lat2,$lng2);
+				$res_arr[$k]['distance'] = $dist;
+				
+			}
+			$d['data'] = $res_arr;
+			
+			//echo '<pre>'; print_r($d); echo '</pre>'; die;
+			return $d;
+		}
+		
+		
+		/*"data": [
+        {
+            "name": "SHYAM GROUP OF DEVELOPERS",
+            "phone": "09990970898",
+            "category": "Real estate agency",
+            "address": "Main Jhatikra Rd, Jhatikra, Delhi, 110043",
+            "email": null,
+            "latitude": "28.5307706",
+            "longitude": "76.967924",
+            "contact_number": "09990970898",
+            "category_id": 946,
+            "service_location": "najafgarh",
+            "business_name": "SHYAM GROUP OF DEVELOPERS",
+            "distance": 909.2,
+            "lat_lng": [
+                "28.5307706",
+                "76.967924"
+            ],
+            "new_vendor_id": 615,
+            "result": "Exist"
+        },*/
+		
+		
+		
+		/*{
+    "success": true,
+    "data_from": "google",
+    "data": [
+        {
+            "id": 1,
+            "user_id": 2,
+            "business_name": "Plumbing all work",
+            "slug": "plumbing-all-work",
+            "logo": null,
+            "about_me": null,
+            "email_verification": "0",
+            "status": "0",
+            "created_at": "2023-12-28 13:25:51",
+            "updated_at": "2023-12-28 13:25:51",
+            "name": "Plumbing all work",
+            "lastname": null,
+            "email": null,
+            "password": "$2y$10$DlM3msir/ovHOKNbDsjYZeJX.htTPzFwRQnZnmbKMS/UyTpCXzKiy",
+            "designation": "",
+            "profile_pic": "https://testing.profilebaba.com/uploads/users/",
+            "contact_number": "09958299490",
+            "address": "H. No. -A91 Gali no. 4B, near st. Thomas school, Block A, Goyla Dairy, Goyla Village, New Delhi, Delhi, 110071",
+            "is_vendor": "1",
+            "token": "$2y$10$6ILETv609FlGm4lYfZr0w.MQD1czDsHWoa0EM6avfp/cWUHPMlkyq",
+            "device_key": null,
+            "register_by": "web",
+            "is_logged_in": "0",
+            "company_category": null,
+            "plan": null,
+            "company_name": null,
+            "company_email": null,
+            "company_phone": null,
+            "company_address": null,
+            "about_company": null,
+            "latitude": null,
+            "longitude": null,
+            "company_website": null,
+            "is_delete": "0",
+            "deleted_at": null,
+            "vendor_id": 1,
+            "landline_number": null,
+            "mobile_number": "09958299490",
+            "alternate_number": null,
+            "whatsapp_number": null,
+            "website": null,
+            "fb_url": null,
+            "insta_url": null,
+            "youtube_url": null,
+            "twitter_url": null,
+            "country": 0,
+            "state": 0,
+            "city": 0,
+            "landmark": null,
+            "area": null,
+            "pincode": 0,
+            "google_location": null,
+            "lat_lng": [
+                28.5803068,
+                77.0144112
+            ],
+            "category_id": 85,
+            "service_location": "H. No. -A91 Gali no. 4B, near st. Thomas school, Block A, Goyla Dairy, Goyla Village, New Delhi, Delhi, 110071",
+            "distance": 1.9003985453171428
+        },*/
+		
+		
+		//$this->arrayFormat($res);
+	}
 }

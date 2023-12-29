@@ -118,7 +118,31 @@ class AuthController extends BaseController
                 return $this->sendError('Error', ['error'=>'User Not Verified']);
             }
             else{
-                return $this->sendError('Error', ['error'=>'User Already Exists']);
+                
+				/*Check user from google, then update*/
+				/*$u = User::where('contact_number', $request->contact_number)->where('register_by', 'web')->first();
+				
+				if($u){
+					
+					//echo '<pre>'; print_r($u); echo '</pre>';
+					$u['is_vendor'] = '1';
+					
+					$u['company_category'] = $request->company_category;
+					$u['company_name'] = $request->company_name;
+					$u['company_email'] = $request->company_email;
+					$u['company_phone'] = $request->company_phone;
+					
+					$u['company_address'] = $request->company_address;
+					$u['about_company'] = $request->about_company;
+					
+					$u->save();
+					return $this->sendResponse("", 'Your details updated');
+				}*/
+				
+				return $this->sendError('Error', ['error'=>'User Already Exists']);
+				
+				
+				
             }
         }
         
@@ -693,8 +717,8 @@ class AuthController extends BaseController
                 $area = $location['name'] ?? "";
             }
             $host = ScrapperHost::find(1)->url;
-            $url = $host."/google/search?query=".$search."&location=".$area."&size=100";
-            //print($url); die;
+            $url = $host."/google/search?category=".$search."&location=".$area."&size=100";
+           // print($url); die;
             
             $vendor = [];
             $client = new Client();
@@ -728,9 +752,13 @@ class AuthController extends BaseController
                     //$dist = CustomValue::getGoogleDistance($location,[$v['latitude'],$v['longitude']]);
                     //echo $v['latitude'].'--'.$v['longitude']; //die;
                     
-                    $dist = CustomValue::getGoogleDistance($v['latitude'],$v['longitude']);
+                    //$dist = CustomValue::getGoogleDistance($v['latitude'],$v['longitude']);
                     
                     //die;
+					
+					$lat1 = $location['lat'];
+					$lng1 = $location['lng'];
+                    $dist = CustomValue::getGoogleDistance($lat1,$lng1,$v['latitude'],$v['longitude']); 
                     
                 }
                 

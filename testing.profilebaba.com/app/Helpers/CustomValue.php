@@ -106,7 +106,7 @@ class CustomValue {
     }*/
 
 
-    public function getGoogleDistance($lat, $lng){
+    /*public function getGoogleDistance($lat, $lng){
         //die('C2');
         if($lat == ""){
             return 0;
@@ -121,6 +121,23 @@ class CustomValue {
             
         $distance = $distance * 1.609344;
         return $distance;
-    }
+    }*/
+	
+	public function getGoogleDistance($lat1,$lng1,$lat2,$lng2){
+		//echo $lat1.'--'.$lng1.'--'.$lat2.'--'.$lng2;
+		
+		if (($lat1 == $lat2) && ($lng1 == $lng2) || ($lat1=="") ) {
+			return 0;
+		}
+		else {
+			$theta = $lng1 - $lng2;
+			$dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) +  cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta));
+			$dist = acos($dist);
+			$dist = rad2deg($dist);
+			$miles = $dist * 60 * 1.1515;
+			$distance = ($miles * 1.609344);
+			return round($distance,1); 
+		}
+	}
 
 }
